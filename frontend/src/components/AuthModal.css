@@ -1,0 +1,397 @@
+/* 
+SmartAir City – IoT Platform for Urban Air Quality Monitoring
+based on NGSI-LD and FiWARE Standards
+
+SPDX-License-Identifier: MIT
+@version   0.1.x
+@author    SmartAir City Team <smartaircity@gmail.com>
+@copyright © 2025 SmartAir City Team. 
+@license   MIT License
+@see       https://github.com/lequang2009k4/SmartAir-City   SmartAir City Open Source Project
+
+This software is an open-source component of the SmartAir City initiative.
+It provides real-time environmental monitoring, NGSI-LD–compliant data
+models, MQTT-based data ingestion, and FiWARE Smart Data Models for
+open-data services and smart-city applications. 
+*/
+
+/* Auth Modal Overlay */
+
+.auth-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Auth Modal */
+.auth-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 480px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Close Button */
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+  color: #333;
+  transform: rotate(90deg);
+}
+
+/* Modal Header */
+.modal-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.modal-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  color: #333;
+  font-weight: 700;
+}
+
+.modal-subtitle {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Auth Error */
+.auth-error {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  color: #c33;
+  font-size: 14px;
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+/* Form */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.required {
+  color: #e53935;
+}
+
+.form-group input {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+/* Password Input Wrapper */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  flex: 1;
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  opacity: 0.6;
+}
+
+.password-toggle:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+/* Eye Slash Effect */
+.eye-slash {
+  position: relative;
+  display: inline-block;
+}
+
+.eye-slash::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+  background: currentColor;
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.form-group input:focus {
+  border-color: #2196F3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.form-group input.error {
+  border-color: #e53935;
+  background-color: #fff5f5;
+}
+
+.form-group input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.error-message {
+  color: #e53935;
+  font-size: 13px;
+  margin-top: -4px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Submit Button */
+.btn-submit {
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 8px;
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-submit:disabled {
+  background: linear-gradient(135deg, #999 0%, #666 100%);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Auth Footer */
+.auth-footer {
+  margin-top: 24px;
+  text-align: center;
+  padding-top: 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.auth-footer p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.btn-switch {
+  background: transparent;
+  border: none;
+  color: #2196F3;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.btn-switch:hover:not(:disabled) {
+  color: #1976D2;
+  text-decoration: underline;
+}
+
+.btn-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .auth-modal {
+    padding: 24px;
+    max-width: 95%;
+  }
+
+  .modal-header h2 {
+    font-size: 24px;
+  }
+
+  .modal-subtitle {
+    font-size: 13px;
+  }
+
+  .form-group input {
+    font-size: 14px;
+  }
+
+  .btn-submit {
+    font-size: 15px;
+  }
+}
+
+/* Dark Mode Support */
+.dark-mode .auth-modal {
+  background: #2d2d2d;
+  color: #e0e0e0;
+}
+
+.dark-mode .modal-header h2 {
+  color: #fff;
+}
+
+.dark-mode .modal-subtitle {
+  color: #bbb;
+}
+
+.dark-mode .form-group label {
+  color: #e0e0e0;
+}
+
+.dark-mode .form-group input {
+  background-color: #3a3a3a;
+  border-color: #555;
+  color: #fff;
+}
+
+.dark-mode .form-group input:focus {
+  border-color: #42A5F5;
+  background-color: #404040;
+}
+
+.dark-mode .form-group input.error {
+  border-color: #ef5350;
+  background-color: #4a2c2c;
+}
+
+.dark-mode .password-toggle {
+  color: #bbb;
+}
+
+.dark-mode .password-toggle:hover:not(:disabled) {
+  color: #fff;
+}
+
+.dark-mode .modal-close {
+  color: #bbb;
+}
+
+.dark-mode .modal-close:hover {
+  background-color: #444;
+  color: #fff;
+}
+
+.dark-mode .auth-footer {
+  border-top-color: #444;
+}
+
+.dark-mode .auth-footer p {
+  color: #bbb;
+}
