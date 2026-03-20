@@ -153,11 +153,11 @@ public class DataNormalizationService
 
             // SOSA fields (optional)
             if (root.TryGetProperty("sosa:madeBySensor", out var mbs))
-                entity.MadeBySensor = mbs.GetString();
+                entity.MadeBySensor = ExtractNgsiString(mbs, "object");
             if (root.TryGetProperty("sosa:observedProperty", out var op))
-                entity.ObservedProperty = op.GetString();
+                entity.ObservedProperty = ExtractNgsiString(op, "value");
             if (root.TryGetProperty("sosa:hasFeatureOfInterest", out var foi))
-                entity.HasFeatureOfInterest = foi.GetString();
+                entity.HasFeatureOfInterest = ExtractNgsiString(foi, "object");
 
             _logger.LogDebug("Parsed IoT data successfully");
         }
@@ -167,6 +167,23 @@ public class DataNormalizationService
         }
 
         return entity;
+    }
+
+    private string? ExtractNgsiString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+            return element.GetString();
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty(propertyName, out var prop))
+            {
+                if (prop.ValueKind == JsonValueKind.String)
+                    return prop.GetString();
+                return prop.ToString();
+            }
+        }
+        return null;
     }
 
     /// <summary>
