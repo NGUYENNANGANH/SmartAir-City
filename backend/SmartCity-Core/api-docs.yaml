@@ -1,0 +1,532 @@
+openapi: 3.0.3
+info:
+  title: SmartCity Core – Devices & Users API
+  description: |
+    RESTful API quản lý thiết bị IoT và người dùng cho nền tảng SmartAir City.
+
+    **Chức năng chính:**
+    - Quản lý thiết bị (CRUD + điều khiển bật/tắt qua MQTT)
+    - Quản lý người dùng (Đăng ký, Đăng nhập, CRUD)
+    - Gửi email cảnh báo chất lượng không khí tới người dân
+  version: 0.1.0
+  contact:
+    name: SmartAir City Team
+    email: smartaircity@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5252
+    description: Local Development Server (cấu hình mặc định)
+  - url: http://localhost:8080
+    description: Docker / Production Server
+
+tags:
+  - name: Devices
+    description: API quản lý thiết bị IoT (cảm biến MQ135, ...)
+  - name: Users
+    description: API quản lý người dùng, xác thực & gửi email cảnh báo
+
+# ═══════════════════════════════════════════════════════
+#  REST API ENDPOINTS
+# ═══════════════════════════════════════════════════════
+paths:
+
+  # ─────────────────────────────────────────────────────
+  #  DEVICES
+  # ─────────────────────────────────────────────────────
+  /api/Devices:
+    get:
+      tags: [Devices]
+      summary: Lấy danh sách tất cả thiết bị
+      operationId: getAllDevices
+      responses:
+        '200':
+          description: Danh sách thiết bị
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+              example:
+                - id: "6650a1b2c3d4e5f6a7b8c9d0"
+                  deviceId: "mq135-oceanpark"
+                  deviceName: "MQ135 Ocean Park"
+                  type: "AirQualitySensor"
+                  observedProperty: "AirQuality"
+                  featureOfInterest: "urban-hanoi"
+                  location:
+                    type: "Point"
+                    coordinates: [105.94408, 20.99330]
+                  status: "active"
+                  description: "Cảm biến MQ135 tại Ocean Park, Gia Lâm, Hà Nội"
+
+  /api/Devices/{id}:
+    get:
+      tags: [Devices]
+      summary: Lấy thiết bị theo ID
+      operationId: getDeviceById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: MongoDB ObjectId của thiết bị
+          schema:
+            type: string
+            example: "6650a1b2c3d4e5f6a7b8c9d0"
+      responses:
+        '200':
+          description: Thông tin thiết bị
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          description: Không tìm thấy thiết bị
+
+    delete:
+      tags: [Devices]
+      summary: Xóa thiết bị theo ID
+      operationId: deleteDevice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: MongoDB ObjectId của thiết bị
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Xóa thành công (No Content)
+        '404':
+          description: Không tìm thấy thiết bị
+
+  /api/Devices/{id}/status:
+    put:
+      tags: [Devices]
+      summary: Cập nhật trạng thái thiết bị (bật/tắt)
+      description: |
+        Cập nhật trạng thái thiết bị trong database và đồng thời gửi lệnh
+        điều khiển qua MQTT tới topic `smartcity/device/{deviceName}/cmd`.
+
+        **MQTT Payload gửi đi:**
+        ```json
+        { "command": "turn_on" }   // khi status != "inactive"
+        { "command": "turn_off" }  // khi status == "inactive"
+        ```
+      operationId: updateDeviceStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: MongoDB ObjectId của thiết bị
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceStatusUpdateRequest'
+            example:
+              status: "inactive"
+      responses:
+        '200':
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Cập nhật trạng thái thành công"
+                  status:
+                    type: string
+                    example: "inactive"
+        '404':
+          description: Không tìm thấy thiết bị
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────────────
+  #  USERS
+  # ─────────────────────────────────────────────────────
+  /api/Users:
+    get:
+      tags: [Users]
+      summary: Lấy danh sách toàn bộ người dùng
+      operationId: getAllUsers
+      responses:
+        '200':
+          description: Danh sách người dùng
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/Users/{id}:
+    get:
+      tags: [Users]
+      summary: Lấy thông tin người dùng theo ID
+      operationId: getUserById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: MongoDB ObjectId của người dùng
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin người dùng
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  name:
+                    type: string
+                  role:
+                    type: string
+              example:
+                id: "6650b2c3d4e5f6a7b8c9d0e1"
+                email: "nguyenvana@gmail.com"
+                name: "Nguyễn Văn A"
+                role: "citizen"
+        '404':
+          description: Không tìm thấy người dùng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Users]
+      summary: Xóa người dùng theo ID
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: MongoDB ObjectId của người dùng
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Xóa thành công (No Content)
+        '404':
+          description: Không tìm thấy người dùng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/Users/signup:
+    post:
+      tags: [Users]
+      summary: Đăng ký tài khoản người dân
+      description: |
+        Người dân đăng ký bằng email + mật khẩu + tên.
+        Hệ thống kiểm tra email trùng lặp trước khi tạo tài khoản mới.
+        Role mặc định: `citizen`.
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+            example:
+              email: "nguyenvana@gmail.com"
+              password: "matkhau123"
+              name: "Nguyễn Văn A"
+      responses:
+        '200':
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Đăng ký thành công"
+                  userId:
+                    type: string
+                    example: "6650b2c3d4e5f6a7b8c9d0e1"
+        '400':
+          description: Email đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Email đã tồn tại"
+
+  /api/Users/login:
+    post:
+      tags: [Users]
+      summary: Đăng nhập (xác thực email + mật khẩu)
+      description: |
+        Người dân đăng nhập bằng email và mật khẩu.
+        Trả về thông tin cơ bản (name, email, role) nếu xác thực thành công.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "nguyenvana@gmail.com"
+              password: "matkhau123"
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+              example:
+                name: "Nguyễn Văn A"
+                email: "nguyenvana@gmail.com"
+                role: "citizen"
+        '401':
+          description: Sai email hoặc mật khẩu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                email_not_found:
+                  summary: Email không tồn tại
+                  value:
+                    message: "Email không tồn tại"
+                wrong_password:
+                  summary: Sai mật khẩu
+                  value:
+                    message: "Sai mật khẩu"
+
+  /api/Users/email:
+    post:
+      tags: [Users]
+      summary: Gửi email cảnh báo chất lượng không khí
+      description: |
+        Gửi email cảnh báo tới người dân thông qua SMTP (Gmail).
+        Tiêu đề email cố định: **"Cảnh báo: Chất lượng không khí đang ở mức xấu"**.
+        Nội dung email được truyền qua trường `message` trong request body.
+      operationId: sendEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+            example:
+              email: "nguyenvana@gmail.com"
+              message: "Chỉ số AQI tại khu vực Ocean Park đang ở mức 163 (Không tốt cho nhóm nhạy cảm). Vui lòng hạn chế ra ngoài."
+      responses:
+        '200':
+          description: Gửi email thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Đã gửi email tới nguyenvana@gmail.com"
+        '404':
+          description: Không tìm thấy người dân có email này
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Gửi email thất bại (lỗi SMTP)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  error:
+                    type: string
+              example:
+                message: "Gửi email thất bại"
+                error: "Authentication failed"
+
+# ═══════════════════════════════════════════════════════
+#  SCHEMAS (Data Models)
+# ═══════════════════════════════════════════════════════
+components:
+  schemas:
+
+    # ── Device ──────────────────────────────────────────
+    Device:
+      type: object
+      description: Thực thể thiết bị IoT trong hệ thống SmartAir City
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectId
+          example: "6650a1b2c3d4e5f6a7b8c9d0"
+        deviceId:
+          type: string
+          description: Mã định danh thiết bị
+          example: "mq135-oceanpark"
+        deviceName:
+          type: string
+          description: Tên hiển thị của thiết bị
+          example: "MQ135 Ocean Park"
+        type:
+          type: string
+          description: Loại thiết bị
+          example: "AirQualitySensor"
+        observedProperty:
+          type: string
+          description: Thuộc tính quan trắc
+          example: "AirQuality"
+        featureOfInterest:
+          type: string
+          description: Đối tượng được quan trắc
+          example: "urban-hanoi"
+        location:
+          $ref: '#/components/schemas/Location'
+        status:
+          type: string
+          description: "Trạng thái thiết bị: active / inactive"
+          default: "active"
+          enum: [active, inactive]
+        description:
+          type: string
+          description: Mô tả thiết bị
+          example: "Cảm biến MQ135 tại Ocean Park, Gia Lâm, Hà Nội"
+
+    Location:
+      type: object
+      description: Tọa độ GeoJSON
+      properties:
+        type:
+          type: string
+          default: "Point"
+        coordinates:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          description: "[longitude, latitude]"
+          example: [105.94408, 20.99330]
+
+    DeviceStatusUpdateRequest:
+      type: object
+      description: Request body cập nhật trạng thái thiết bị
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: "Trạng thái mới: active hoặc inactive"
+          enum: [active, inactive]
+          example: "inactive"
+
+    # ── User ────────────────────────────────────────────
+    User:
+      type: object
+      description: Thực thể người dùng (người dân / quản trị viên)
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectId
+          example: "6650b2c3d4e5f6a7b8c9d0e1"
+        email:
+          type: string
+          format: email
+          description: Địa chỉ email
+          example: "nguyenvana@gmail.com"
+        password:
+          type: string
+          description: Mật khẩu (plaintext – cần cải thiện bảo mật)
+          example: "matkhau123"
+        name:
+          type: string
+          description: Họ tên người dùng
+          example: "Nguyễn Văn A"
+        role:
+          type: string
+          description: "Vai trò: citizen (người dân) hoặc admin"
+          default: "citizen"
+          enum: [citizen, admin]
+
+    # ── Request Models ──────────────────────────────────
+    SignupRequest:
+      type: object
+      description: Request body đăng ký tài khoản
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "nguyenvana@gmail.com"
+        password:
+          type: string
+          example: "matkhau123"
+        name:
+          type: string
+          example: "Nguyễn Văn A"
+
+    LoginRequest:
+      type: object
+      description: Request body đăng nhập
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "nguyenvana@gmail.com"
+        password:
+          type: string
+          example: "matkhau123"
+
+    EmailRequest:
+      type: object
+      description: Request body gửi email cảnh báo
+      required: [email, message]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email người nhận
+          example: "nguyenvana@gmail.com"
+        message:
+          type: string
+          description: Nội dung cảnh báo
+          example: "Chỉ số AQI tại khu vực Ocean Park đang ở mức 163."
+
+    # ── Common ──────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Không tìm thấy"

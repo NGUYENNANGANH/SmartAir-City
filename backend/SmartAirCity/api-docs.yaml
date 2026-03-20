@@ -1,0 +1,319 @@
+openapi: 3.0.3
+info:
+  title: SmartAir City – Air Quality API
+  description: |
+    RESTful API cho nền tảng IoT giám sát chất lượng không khí đô thị,
+    tuân thủ chuẩn NGSI-LD & FiWARE Smart Data Models.
+
+    **Kiến trúc hệ thống:**
+    - Dữ liệu IoT (cảm biến MQ135) được thu nhận qua MQTT Broker
+    - Dữ liệu bổ sung PM2.5, PM10, O3, NO2, SO2, CO từ OpenAQ API
+    - Dữ liệu sau khi merge được lưu vào MongoDB và đẩy real-time qua SignalR WebSocket
+  version: 0.1.0
+  contact:
+    name: SmartAir City Team
+    email: smartaircity@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:51872
+    description: Local Development Server
+
+tags:
+  - name: AirQuality
+    description: API quản lý dữ liệu chất lượng không khí (REST)
+  - name: SignalR
+    description: WebSocket Hub đẩy dữ liệu real-time tới Frontend
+
+# ═══════════════════════════════════════════════════════
+#  REST API ENDPOINTS
+# ═══════════════════════════════════════════════════════
+paths:
+
+  # ─────────────────────────────────────────────────────
+  #  GET /api/airquality
+  # ─────────────────────────────────────────────────────
+  /api/airquality:
+    get:
+      tags: [AirQuality]
+      summary: Lấy danh sách dữ liệu chất lượng không khí
+      description: |
+        Trả về tất cả bản ghi AirQualityObserved từ MongoDB,
+        sắp xếp theo thời gian giảm dần (mới nhất lên đầu).
+        Có thể giới hạn số lượng bản ghi bằng query param `limit`.
+      operationId: getAll
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Số lượng bản ghi tối đa trả về (nếu không truyền sẽ trả tất cả)
+          schema:
+            type: integer
+            minimum: 1
+            example: 50
+      responses:
+        '200':
+          description: Danh sách bản ghi AirQualityObserved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AirQualityObserved'
+              example:
+                - id: "urn:ngsi-ld:AirQualityObserved:station-hn01:2026-03-20T17:02:27Z"
+                  type: "AirQualityObserved"
+                  "@context":
+                    - "https://smartdatamodels.org/context.jsonld"
+                    - sosa: "http://www.w3.org/ns/sosa/"
+                  "sosa:madeBySensor": "urn:ngsi-ld:Device:mq135-hn01"
+                  "sosa:observedProperty": "AirQuality"
+                  "sosa:hasFeatureOfInterest": "urn:ngsi-ld:Air:urban-hanoi"
+                  dateObserved:
+                    type: "Property"
+                    value: "2026-03-20T17:02:27Z"
+                  airQualityIndex:
+                    type: "Property"
+                    value: 163.0
+                    unitCode: "P1"
+                  pm25:
+                    type: "Property"
+                    value: 22.89
+                    unitCode: "µg/m³"
+                  pm10:
+                    type: "Property"
+                    value: 41.52
+                    unitCode: "µg/m³"
+                  location:
+                    type: "GeoProperty"
+                    value:
+                      type: "Point"
+                      coordinates: [105.94408, 20.99330]
+
+  # ─────────────────────────────────────────────────────
+  #  GET /api/airquality/latest
+  # ─────────────────────────────────────────────────────
+  /api/airquality/latest:
+    get:
+      tags: [AirQuality]
+      summary: Lấy bản ghi mới nhất
+      description: |
+        Trả về bản ghi AirQualityObserved gần đây nhất từ database.
+        Dùng cho dashboard hiển thị dữ liệu hiện tại.
+      operationId: getLatest
+      responses:
+        '200':
+          description: Bản ghi AirQualityObserved mới nhất
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AirQualityObserved'
+        '404':
+          description: Không có dữ liệu trong database
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Khong co du lieu"
+
+  # ─────────────────────────────────────────────────────
+  #  GET /api/airquality/history
+  # ─────────────────────────────────────────────────────
+  /api/airquality/history:
+    get:
+      tags: [AirQuality]
+      summary: Truy vấn dữ liệu theo khoảng thời gian
+      description: |
+        Trả về danh sách bản ghi AirQualityObserved trong khoảng thời gian `from` → `to`,
+        sắp xếp theo thời gian tăng dần (cũ → mới).
+
+        **Lưu ý:**
+        - Nếu chỉ nhập ngày (không có giờ), `from` = 00:00:00, `to` = 23:59:59
+        - `from` phải nhỏ hơn `to`, nếu không sẽ trả về lỗi 400
+      operationId: getHistory
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Thời gian bắt đầu (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-03-20T00:00:00Z"
+        - name: to
+          in: query
+          required: true
+          description: Thời gian kết thúc (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-03-20T23:59:59Z"
+      responses:
+        '200':
+          description: Danh sách bản ghi trong khoảng thời gian
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AirQualityObserved'
+        '400':
+          description: Tham số thời gian không hợp lệ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Thoi gian 'from' phai nho hon 'to'."
+
+# ═══════════════════════════════════════════════════════
+#  SIGNALR WEBSOCKET HUB (Không phải REST – mô tả bổ sung)
+# ═══════════════════════════════════════════════════════
+x-signalr-hubs:
+  /airqualityhub:
+    description: |
+      **SignalR Hub** – Kênh WebSocket đẩy dữ liệu real-time tới Frontend.
+
+      **Kết nối:** `http://localhost:51872/airqualityhub`
+
+      **Server → Client Events:**
+      | Event              | Payload               | Mô tả                                           |
+      |--------------------|----------------------|--------------------------------------------------|
+      | `ReceiveAirQuality`| `AirQualityObserved` | Được gửi mỗi khi có dữ liệu mới từ MQTT + OpenAQ |
+
+      **Lifecycle Events:**
+      - `OnConnectedAsync` – Log connection ID & User-Agent khi client kết nối
+      - `OnDisconnectedAsync` – Log khi client ngắt kết nối (kèm exception nếu có)
+
+# ═══════════════════════════════════════════════════════
+#  SCHEMAS (Data Models)
+# ═══════════════════════════════════════════════════════
+components:
+  schemas:
+
+    NumericProperty:
+      type: object
+      description: Thuộc tính số theo chuẩn NGSI-LD Property
+      properties:
+        type:
+          type: string
+          default: "Property"
+        value:
+          type: number
+          nullable: true
+          description: Giá trị đo được
+        unitCode:
+          type: string
+          nullable: true
+          description: "Đơn vị đo (VD: µg/m³, P1)"
+        observedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Thời điểm ghi nhận giá trị
+
+    GeoValue:
+      type: object
+      description: Giá trị tọa độ GeoJSON
+      properties:
+        type:
+          type: string
+          default: "Point"
+        coordinates:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          description: "[longitude, latitude]"
+          example: [105.94408, 20.99330]
+
+    LocationProperty:
+      type: object
+      description: Thuộc tính vị trí theo chuẩn NGSI-LD GeoProperty
+      properties:
+        type:
+          type: string
+          default: "GeoProperty"
+        value:
+          $ref: '#/components/schemas/GeoValue'
+
+    DateTimeProperty:
+      type: object
+      description: Thuộc tính thời gian theo chuẩn NGSI-LD Property
+      properties:
+        type:
+          type: string
+          default: "Property"
+        value:
+          type: string
+          format: date-time
+
+    AirQualityObserved:
+      type: object
+      description: |
+        Entity chính – Dữ liệu chất lượng không khí quan trắc được,
+        tuân thủ NGSI-LD & FiWARE Smart Data Model AirQualityObserved.
+        Kết hợp dữ liệu IoT (MQ135 sensor qua MQTT) và OpenAQ API.
+      properties:
+        id:
+          type: string
+          description: ID theo chuẩn NGSI-LD
+          example: "urn:ngsi-ld:AirQualityObserved:station-hn01:2026-03-20T17:02:27Z"
+        type:
+          type: string
+          default: "AirQualityObserved"
+        "@context":
+          type: array
+          description: JSON-LD Context
+          items:
+            oneOf:
+              - type: string
+              - type: object
+        "sosa:madeBySensor":
+          type: string
+          nullable: true
+          description: "SOSA – Cảm biến thực hiện đo"
+          example: "urn:ngsi-ld:Device:mq135-hn01"
+        "sosa:observedProperty":
+          type: string
+          nullable: true
+          description: "SOSA – Thuộc tính được quan trắc"
+          example: "AirQuality"
+        "sosa:hasFeatureOfInterest":
+          type: string
+          nullable: true
+          description: "SOSA – Đối tượng được quan trắc"
+          example: "urn:ngsi-ld:Air:urban-hanoi"
+        dateObserved:
+          $ref: '#/components/schemas/DateTimeProperty'
+        location:
+          $ref: '#/components/schemas/LocationProperty'
+        airQualityIndex:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Chỉ số AQI từ cảm biến MQ135 (nguồn: IoT/MQTT)"
+        pm25:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ bụi mịn PM2.5 (nguồn: OpenAQ API)"
+        pm10:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ bụi PM10 (nguồn: OpenAQ API)"
+        o3:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ Ozone (nguồn: OpenAQ API)"
+        no2:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ Nitrogen Dioxide (nguồn: OpenAQ API)"
+        so2:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ Sulfur Dioxide (nguồn: OpenAQ API)"
+        co:
+          $ref: '#/components/schemas/NumericProperty'
+          description: "Nồng độ Carbon Monoxide (nguồn: OpenAQ API)"
