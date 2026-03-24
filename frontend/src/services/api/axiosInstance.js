@@ -42,11 +42,11 @@ export const airQualityAxios = axios.create({
 });
 
 /**
- * Core API Instance - Devices, Users & Auth (Port 5252)
+ * Core API Instance - Devices, Users & Auth (Port 8080)
  * Backend must have CORS enabled to allow requests from localhost:3000
  */
 export const coreApiAxios = axios.create({
-  baseURL: process.env.REACT_APP_CORE_API_URL || 'http://localhost:5252',
+  baseURL: process.env.REACT_APP_CORE_API_URL || 'http://localhost:8080',
   timeout: API_CONFIG.TIMEOUT,
   headers: API_CONFIG.DEFAULT_HEADERS,
 });

@@ -28,7 +28,7 @@
 // ============================================
 const ENV = process.env.REACT_APP_ENV || 'development';
 const AIR_API_BASE_URL = process.env.REACT_APP_AIR_API_URL || 'http://localhost:5182';
-const CORE_API_BASE_URL = process.env.REACT_APP_CORE_API_URL || 'http://3.27.249.236:5252';
+const CORE_API_BASE_URL = process.env.REACT_APP_CORE_API_URL || 'http://3.27.249.236:8080';
 const API_TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT) || 10000;
 const AUTO_REFRESH_INTERVAL = parseInt(process.env.REACT_APP_AUTO_REFRESH_INTERVAL) || 30000;
 
