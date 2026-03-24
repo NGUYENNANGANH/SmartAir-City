@@ -20,8 +20,33 @@ import './RealtimeDashboard.css';
 const RealtimeDashboard = () => {
   const { latestData, isConnected, isLoading } = useAirQualityContext();
 
-  // Get first station data (most recent)
-  const station = latestData && latestData.length > 0 ? latestData[0] : null;
+  // Get the station with the most recent timestamp/dateObserved
+  const station = React.useMemo(() => {
+    if (!latestData || latestData.length === 0) return null;
+
+    const getStationTime = (item) => {
+      const ts = item?.timestamp;
+      if (typeof ts === 'number') return ts;
+      if (typeof ts === 'string') {
+        const parsedTs = Date.parse(ts);
+        if (!Number.isNaN(parsedTs)) return parsedTs;
+      }
+
+      const observed = item?.dateObserved;
+      if (typeof observed === 'number') return observed;
+      if (typeof observed === 'string') {
+        const parsedObserved = Date.parse(observed);
+        if (!Number.isNaN(parsedObserved)) return parsedObserved;
+      }
+
+      return 0;
+    };
+
+    return latestData.reduce((latest, current) => {
+      if (!latest) return current;
+      return getStationTime(current) > getStationTime(latest) ? current : latest;
+    }, null);
+  }, [latestData]);
 
   // Calculate 24h average AQI from all stations
   const calculate24hAverage = React.useMemo(() => {
