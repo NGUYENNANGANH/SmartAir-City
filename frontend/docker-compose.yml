@@ -1,0 +1,23 @@
+version: '3.9'
+services:
+  frontend:
+    container_name: smartair-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      REACT_APP_ENV: development
+      REACT_APP_CORE_API_URL: http://localhost:8080
+      REACT_APP_AIR_API_URL: http://localhost:51872
+      REACT_APP_AIR_WS_URL: http://localhost:51872
+      REACT_APP_USE_MOCK: "false"
+      REACT_APP_ENABLE_WEBSOCKET: "true"
+      REACT_APP_DEBUG_MODE: "true"
+    ports:
+      - "5252:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm start

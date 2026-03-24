@@ -23,10 +23,17 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 # Copy all source code into container
 COPY . .
+
+# Default runtime env for CRA dev server and API endpoints
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV REACT_APP_CORE_API_URL=http://localhost:8080
+ENV REACT_APP_AIR_API_URL=http://localhost:51872
+ENV REACT_APP_AIR_WS_URL=http://localhost:51872
 
 # Expose port 3000 for React dev server
 EXPOSE 3000
