@@ -85,23 +85,34 @@ const AirQualityChart = () => {
       return;
     }
 
-    // Get the most recent station data
-    const station = latestData[0];
+    const getStationTimestamp = (item) => {
+      if (item?.timestamp) return item.timestamp;
+      if (item?.dateObserved) return new Date(item.dateObserved).getTime();
+      return 0;
+    };
+
+    // Pick the newest station data by timestamp (not just array[0])
+    const station = latestData.reduce((latest, current) => {
+      return getStationTimestamp(current) > getStationTimestamp(latest) ? current : latest;
+    }, latestData[0]);
+
+    const stationTimestamp = getStationTimestamp(station) || Date.now();
+
     console.log('📊 [Chart] New data received:', {
       aqi: station.aqi,
-      timestamp: station.timestamp,
+      timestamp: stationTimestamp,
       dateObserved: station.dateObserved
     });
 
     const newDataPoint = {
       time: new Date(
-        station.dateObserved || station.timestamp
+        station.dateObserved || stationTimestamp
       ).toLocaleTimeString("vi-VN", {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
       }),
-      timestamp: station.timestamp || new Date(station.dateObserved).getTime(),
+      timestamp: stationTimestamp,
       AQI: Math.round(station.aqi || 0),
       CO: parseFloat((station.co || 0).toFixed(2)),
       SO2: parseFloat((station.so2 || 0).toFixed(2)),
@@ -112,12 +123,15 @@ const AirQualityChart = () => {
     };
 
     setChartData((prevData) => {
-      // Check if this data point already exists in the array
-      const isDuplicate = prevData.some(point => point.timestamp === newDataPoint.timestamp);
-      
-      if (isDuplicate) {
-        console.log('📊 [Chart] Duplicate timestamp detected, skipping:', newDataPoint.timestamp);
-        return prevData;
+      const existingIndex = prevData.findIndex(
+        (point) => point.timestamp === newDataPoint.timestamp
+      );
+
+      if (existingIndex !== -1) {
+        const nextData = [...prevData];
+        nextData[existingIndex] = newDataPoint;
+        console.log('📊 [Chart] Replaced data point at timestamp:', newDataPoint.timestamp);
+        return nextData;
       }
 
       // Add new point and keep only last N points
